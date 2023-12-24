@@ -3,12 +3,14 @@ use grammers_client::{
     Client, Update,
 };
 
-const USAGE: &str = "Usage: ./summarize <number of messages to summarize>
+fn usage() -> String {
+    format!("Usage: ./summarize <number of messages to summarize>
 
-We don't store your messages. We store only latest 200 message ids that will be used to fetch messages and discard them after summarization.
-";
+We don't store your messages. We store only latest {} message ids that will be used to fetch messages and discard them after summarization.", 
+consts::MESSAGE_TO_STORE)
+}
 
-use crate::{db::Db, openai::OpenAIClient};
+use crate::{consts, db::Db, openai::OpenAIClient};
 
 pub struct Processor {
     client: Client,
@@ -48,7 +50,7 @@ impl Processor {
         log::info!("Command: {:?}", cmd);
 
         if cmd == "/help" {
-            self.client.send_message(&message.chat(), USAGE).await?;
+            self.client.send_message(&message.chat(), usage()).await?;
         } else if cmd == "/summarize" {
             self.summarize(message).await?;
         } else {
@@ -70,16 +72,18 @@ impl Processor {
     async fn summarize(&mut self, message: Message) -> anyhow::Result<()> {
         let mut splitted_string = message.text().split_whitespace();
 
-        let count = if let Some(amount) = splitted_string.nth(1).and_then(|s| s.parse::<u32>().ok())
-        {
-            amount.min(200)
-        } else {
-            self.client.send_message(message.chat(), "You should provide a number of messages to summarize. But we have a cap of 200").await?;
-            return Ok(());
-        };
+        let count = splitted_string
+            .nth(1)
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(consts::DEFAULT_SUMMARY_LENGTH);
 
         let sender = if let Some(sender) = message.sender() {
-            if let Err(_) = self.client.send_message(&sender, "Summarizing...").await {
+            if self
+                .client
+                .send_message(&sender, format!("Summarizing {count} messages..."))
+                .await
+                .is_err()
+            {
                 self.client
                     .send_message(
                         message.chat(),
@@ -101,14 +105,19 @@ impl Processor {
         };
 
         let messages_id_to_load: Vec<i32> = self.db.get_messages_id(message.chat().id(), count)?;
-
-        let messages = self
-            .client
-            .get_messages_by_id(message.chat(), &messages_id_to_load)
-            .await?
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+        let mut messages = Vec::with_capacity(count as usize);
+        for i in 0..messages_id_to_load.len() / consts::TELEGRAM_MAX_MESSAGE_FETCH {
+            let fetch_slice = &messages_id_to_load[i * consts::TELEGRAM_MAX_MESSAGE_FETCH
+                ..(i + 1) * consts::TELEGRAM_MAX_MESSAGE_FETCH];
+            let fetched_messages = self
+                .client
+                .get_messages_by_id(message.chat(), fetch_slice)
+                .await?
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>();
+            messages.extend(fetched_messages);
+        }
 
         tokio::spawn(Self::summarization(
             self.client.clone(),

@@ -1,5 +1,7 @@
 use rusqlite::Connection;
 
+use crate::consts;
+
 pub struct Db {
     connection: Connection,
 }
@@ -33,7 +35,7 @@ impl Db {
     pub fn add_message_id(&self, chat_id: i64, message_id: i32) -> anyhow::Result<()> {
         // First we have to check if we have a table with the chat_id name. If not we have to create it.
         // Then we have to insert the message_id into the table.
-        // Also, we need maintain the table size to be 200 messages.
+        // Also, we need maintain the table size to be consts::MESSAGE_TO_STORE messages.
 
         let table_statement = format!(
             "CREATE TABLE IF NOT EXISTS g{chat_id} (
@@ -51,10 +53,11 @@ impl Db {
 
         let delete_statement = format!(
             "DELETE FROM g{chat_id} WHERE id NOT IN (
-                SELECT id FROM g{chat_id} ORDER BY id DESC LIMIT 200
+                SELECT id FROM g{chat_id} ORDER BY id DESC LIMIT ?
             )",
         );
-        self.connection.execute(&delete_statement, [])?;
+        self.connection
+            .execute(&delete_statement, [consts::MESSAGE_TO_STORE])?;
         Ok(())
     }
 }

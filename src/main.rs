@@ -1,6 +1,7 @@
 use grammers_client::{Client, Config};
 use grammers_session::Session;
 
+pub mod consts;
 mod db;
 mod openai;
 mod telegram;
