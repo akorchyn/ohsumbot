@@ -5,8 +5,8 @@ mod db;
 mod openai;
 mod telegram;
 
-const DB_NAME: &str = "db.sqlite3";
-const SESSION_NAME: &str = "session";
+const DB_NAME: &str = "./db/db.sqlite3";
+const SESSION_NAME: &str = "./db/session";
 
 #[derive(serde::Deserialize, Debug)]
 struct BotInfo {
