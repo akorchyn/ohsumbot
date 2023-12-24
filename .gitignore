@@ -1,0 +1,4 @@
+/target
+.env
+session
+db.sqlite3
