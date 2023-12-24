@@ -106,7 +106,7 @@ impl Processor {
 
         let messages_id_to_load: Vec<i32> = self.db.get_messages_id(message.chat().id(), count)?;
         let mut messages = Vec::with_capacity(count as usize);
-        for i in 0..messages_id_to_load.len() / consts::TELEGRAM_MAX_MESSAGE_FETCH {
+        for i in 0..(messages_id_to_load.len() / consts::TELEGRAM_MAX_MESSAGE_FETCH + 1) {
             let fetch_slice = &messages_id_to_load[i * consts::TELEGRAM_MAX_MESSAGE_FETCH
                 ..(i + 1) * consts::TELEGRAM_MAX_MESSAGE_FETCH];
             let fetched_messages = self
@@ -118,11 +118,6 @@ impl Processor {
                 .collect::<Vec<_>>();
             messages.extend(fetched_messages);
         }
-        log::info!(
-            "Loaded {} messages from {} message ids",
-            messages.len(),
-            messages_id_to_load.len()
-        );
 
         tokio::spawn(Self::summarization(
             self.client.clone(),
