@@ -118,6 +118,11 @@ impl Processor {
                 .collect::<Vec<_>>();
             messages.extend(fetched_messages);
         }
+        log::info!(
+            "Loaded {} messages from {} message ids",
+            messages.len(),
+            messages_id_to_load.len()
+        );
 
         tokio::spawn(Self::summarization(
             self.client.clone(),

@@ -49,15 +49,24 @@ impl Db {
 
         let insert_statement =
             format!("INSERT INTO g{chat_id} (timestamp, message_id) VALUES (datetime('now'), ?)",);
-        self.connection.execute(&insert_statement, [message_id])?;
+        let inserted = self.connection.execute(&insert_statement, [message_id])?;
 
         let delete_statement = format!(
             "DELETE FROM g{chat_id} WHERE id NOT IN (
                 SELECT id FROM g{chat_id} ORDER BY id DESC LIMIT ?
             )",
         );
-        self.connection
+        let removed = self
+            .connection
             .execute(&delete_statement, [consts::MESSAGE_TO_STORE])?;
+
+        log::info!(
+            "Inserted {} message ids and removed {} message ids from chat {}",
+            inserted,
+            removed,
+            chat_id
+        );
+
         Ok(())
     }
 }
