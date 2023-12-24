@@ -75,7 +75,8 @@ impl Processor {
         let count = splitted_string
             .nth(1)
             .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(consts::DEFAULT_SUMMARY_LENGTH);
+            .unwrap_or(consts::DEFAULT_SUMMARY_LENGTH)
+            .min(consts::MESSAGE_TO_STORE);
 
         let sender = if let Some(sender) = message.sender() {
             if self
