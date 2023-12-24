@@ -3,7 +3,10 @@ use grammers_client::{
     Client, Update,
 };
 
-const USAGE: &str = "Usage:";
+const USAGE: &str = "Usage: ./summarize <number of messages to summarize>
+
+We don't store your messages. We store only latest 200 message ids that will be used to fetch messages and discard them after summarization.
+";
 
 use crate::{db::Db, openai::OpenAIClient};
 
