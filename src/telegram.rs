@@ -27,7 +27,6 @@ impl Processor {
                 Update::NewMessage(message)
                     if !message.outgoing() && matches!(message.chat(), Chat::Group(_)) =>
                 {
-                    log::info!("New message: {:?}", message);
                     if let Err(err) = self.process_message(message).await {
                         log::error!("Error processing message: {:?}", err)
                     }
@@ -51,11 +50,18 @@ impl Processor {
         if cmd == "/help" {
             self.client.send_message(&message.chat(), USAGE).await?;
         } else if cmd == "/summarize" {
-            log::info!("Summarizing request: {:?}", message);
             self.summarize(message).await?;
         } else {
-            log::info!("Adding message id request");
-            self.db.add_message_id(message.chat().id(), message.id())?;
+            let is_bot = message
+                .sender()
+                .map(|s| match s {
+                    Chat::User(user) => user.is_bot(),
+                    _ => false,
+                })
+                .unwrap_or(false);
+            if !is_bot {
+                self.db.add_message_id(message.chat().id(), message.id())?;
+            }
         }
 
         Ok(())
