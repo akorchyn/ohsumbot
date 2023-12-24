@@ -35,6 +35,10 @@ impl OpenAIClient {
     }
 
     pub fn summarize(&self, messages: &[Message]) -> anyhow::Result<String> {
+        if messages.is_empty() {
+            return Ok("No messages to summarize".to_string());
+        }
+
         let client: Client = Client::new(self.api_key.clone());
         log::info!("Summarizing {} messages", messages.len());
 
