@@ -8,3 +8,5 @@ services:
       - TG_API_HASH=${TG_API_HASH}
       - BOT_TOKEN=${BOT_TOKEN}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - .db/:/app/db/
