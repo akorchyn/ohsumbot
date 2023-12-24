@@ -36,6 +36,7 @@ impl OpenAIClient {
 
     pub fn summarize(&self, messages: &[Message]) -> anyhow::Result<String> {
         let client: Client = Client::new(self.api_key.clone());
+        log::info!("Summarizing {} messages", messages.len());
 
         let mut prompt = String::from(PROMPT);
         for (i, message) in messages.iter().enumerate() {

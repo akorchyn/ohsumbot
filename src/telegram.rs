@@ -33,7 +33,7 @@ impl Processor {
                         log::error!("Error processing message: {:?}", err)
                     }
                 }
-                _ => log::info!("Update: {:?}", &update),
+                _ => {}
             }
         }
 
@@ -47,7 +47,6 @@ impl Processor {
         } else {
             return Ok(());
         };
-        log::info!("Command: {:?}", cmd);
 
         if cmd == "/help" {
             self.client.send_message(&message.chat(), usage()).await?;
