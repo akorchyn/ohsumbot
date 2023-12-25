@@ -107,8 +107,10 @@ impl Processor {
         let messages_id_to_load: Vec<i32> = self.db.get_messages_id(message.chat().id(), count)?;
         let mut messages = Vec::with_capacity(count as usize);
         for i in 0..(messages_id_to_load.len() / consts::TELEGRAM_MAX_MESSAGE_FETCH + 1) {
-            let fetch_slice = &messages_id_to_load[i * consts::TELEGRAM_MAX_MESSAGE_FETCH
-                ..(i + 1) * consts::TELEGRAM_MAX_MESSAGE_FETCH];
+            let minimum = i * consts::TELEGRAM_MAX_MESSAGE_FETCH;
+            let maximum =
+                ((i + 1) * consts::TELEGRAM_MAX_MESSAGE_FETCH).min(messages_id_to_load.len());
+            let fetch_slice = &messages_id_to_load[minimum..maximum];
             let fetched_messages = self
                 .client
                 .get_messages_by_id(message.chat(), fetch_slice)
