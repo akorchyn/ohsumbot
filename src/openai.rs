@@ -5,23 +5,22 @@ use openai_api_rs::v1::{
     common::GPT3_5_TURBO,
 };
 
-const PROMPT: &str = r#"Please summarize the content and discussions from the provided messages in this chat into a single concise summary (TL;DR). Provide an overview of the main topics, key points, and any notable discussions that took place within these messages. Please use the language that was used in the input for a summary.
-The summary shouldn't be very long but should be long enough to cover the main points of the messages. The summary should be written in a way that is easy to understand and doesn't contain any unnecessary information.
+const PROMPT: &str = r#"Summarize the content and discussions from the provided chat messages into a concise and clear overview (TL;DR). The summary should capture the essence and context of the main topics, key points, and any notable discussions, reflecting the sequence and depth of the conversation.
 
-Supported languages are Ukrainian, English.
-Ukrainian has priority over English.
+* **Language Priority**: Summarize in Ukrainian or English, aligning with the original message languages. Ukrainian has priority.
+* **Brevity with Clarity**: Ensure the summary is brief yet comprehensive, clearly conveying the discussion's essence without unnecessary detail or complex language.
+* **Objective Tone**: Maintain an objective and factual tone, reflecting the discussions accurately.
+* **Format**: Follow any specified summary format, ensuring consistency and readability.
+* **Handling Ambiguity**: Address any ambiguous points by closely aligning with the most probable intent or excluding them if they significantly disrupt clarity.
 
-The messages are provided from the oldest to the newest.
-
-PLEASE TRANSLATE SUMMARY TO THE LANGUAGE OF THE INPUT MESSAGES BUT IT SHOULD BE IN SUPPORTED LANGUAGES. DO NOT TRANSLATE THE INPUT MESSAGES TO ENGLISH AND DO NOT USE ENGLISH IN SUMMARY IF THE MESSAGES ARE NOT IN ENGLISH.
-THE SUMMARY SHOULD REPRESENT INTENTION AND THE SENSE OF THE INPUT MESSAGES.
-PLEASE DONT FORGET TO USE @ before the username of the sender.
-
-The messages will be provided in the next format.
+Messages follow this format:
 ```
 1. [Sender]: "message"
 2. [Some other or same sender]: "message"
 ```
+
+Focus on delivering a summary that is easy to understand, devoid of unnecessary information, and true to the original discussion's intent and language.
+Please take your time to process the input.
 
 Messages to summarize:
 ```
