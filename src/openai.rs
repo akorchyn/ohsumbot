@@ -43,7 +43,7 @@ impl OpenAIClient {
         log::info!("Summarizing {} messages", messages.len());
 
         let mut prompt = String::from(PROMPT);
-        for (i, message) in messages.iter().enumerate() {
+        for (i, message) in messages.iter().enumerate().rev() {
             prompt.push_str(&format!(
                 "{}. [@{}]: \"{}\"\n",
                 i + 1,
