@@ -8,7 +8,10 @@ use openai_api_rs::v1::{
 const PROMPT: &str = r#"Please summarize the content and discussions from the provided messages in this chat into a single concise summary (TL;DR). Provide an overview of the main topics, key points, and any notable discussions that took place within these messages. Please use the language that was used in the input for a summary.
 The summary shouldn't be very long but should be long enough to cover the main points of the messages. The summary should be written in a way that is easy to understand and doesn't contain any unnecessary information.
 
-Supported languages is Ukrainian, English.
+Supported languages are Ukrainian, English.
+Ukrainian has priority over English.
+
+The messages are provided from the oldest to the newest.
 
 PLEASE TRANSLATE SUMMARY TO THE LANGUAGE OF THE INPUT MESSAGES BUT IT SHOULD BE IN SUPPORTED LANGUAGES. DO NOT TRANSLATE THE INPUT MESSAGES TO ENGLISH AND DO NOT USE ENGLISH IN SUMMARY IF THE MESSAGES ARE NOT IN ENGLISH.
 THE SUMMARY SHOULD REPRESENT INTENTION AND THE SENSE OF THE INPUT MESSAGES.
