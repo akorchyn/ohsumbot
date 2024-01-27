@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use grammers_client::{
     types::{Chat, Message},
     Client, Update,
 };
+use tokio::sync::RwLock;
 
 fn usage() -> String {
     format!("Usage: ./summarize <number of messages to summarize>
@@ -10,17 +13,25 @@ We don't store your messages. We store only latest {} message ids that will be u
 consts::MESSAGE_TO_STORE)
 }
 
-use crate::{consts, db::Db, openai::OpenAIClient};
+use crate::{consts, db::Db, openai::processor::Command};
 
 pub struct Processor {
     client: Client,
-    openai: OpenAIClient,
-    db: Db,
+    db: Arc<RwLock<Db>>,
+    sender_channel: tokio::sync::mpsc::Sender<Command>,
 }
 
 impl Processor {
-    pub fn new(client: Client, db: Db, openai: OpenAIClient) -> Self {
-        Self { client, db, openai }
+    pub fn new(
+        client: Client,
+        db: Arc<RwLock<Db>>,
+        sender: tokio::sync::mpsc::Sender<Command>,
+    ) -> Self {
+        Self {
+            client,
+            db,
+            sender_channel: sender,
+        }
     }
 
     pub async fn process_updates(&mut self) -> anyhow::Result<()> {
@@ -47,22 +58,24 @@ impl Processor {
         } else {
             return Ok(());
         };
+        let is_bot = message
+            .sender()
+            .map(|s| match s {
+                Chat::User(user) => user.is_bot(),
+                _ => false,
+            })
+            .unwrap_or(false);
 
         if cmd == "/help" {
             self.client.send_message(&message.chat(), usage()).await?;
         } else if cmd == "/summarize" {
             self.summarize(message).await?;
+        } else if cmd.starts_with("/") || is_bot {
         } else {
-            let is_bot = message
-                .sender()
-                .map(|s| match s {
-                    Chat::User(user) => user.is_bot(),
-                    _ => false,
-                })
-                .unwrap_or(false);
-            if !is_bot {
-                self.db.add_message_id(message.chat().id(), message.id())?;
-            }
+            self.db
+                .write()
+                .await
+                .add_message_id(message.chat().id(), message.id())?;
         }
 
         Ok(())
@@ -103,45 +116,14 @@ impl Processor {
                 .await?;
             return Ok(());
         };
-
-        let messages_id_to_load: Vec<i32> = self.db.get_messages_id(message.chat().id(), count)?;
-        let mut messages = Vec::with_capacity(count as usize);
-        for i in 0..(messages_id_to_load.len() / consts::TELEGRAM_MAX_MESSAGE_FETCH + 1) {
-            let minimum = i * consts::TELEGRAM_MAX_MESSAGE_FETCH;
-            let maximum =
-                ((i + 1) * consts::TELEGRAM_MAX_MESSAGE_FETCH).min(messages_id_to_load.len());
-            let fetch_slice = &messages_id_to_load[minimum..maximum];
-            let fetched_messages = self
-                .client
-                .get_messages_by_id(message.chat(), fetch_slice)
-                .await?
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>();
-            messages.extend(fetched_messages);
-        }
-
-        tokio::spawn(Self::summarization(
-            self.client.clone(),
-            self.openai.clone(),
-            sender,
-            messages,
-        ));
+        self.sender_channel
+            .send(Command::Summarize {
+                chat: message.chat(),
+                recipient: sender,
+                message_count: count,
+            })
+            .await?;
 
         Ok(())
-    }
-
-    async fn summarization(
-        client: Client,
-        openai_client: OpenAIClient,
-        chat: Chat,
-        messages: Vec<Message>,
-    ) {
-        let summary = openai_client
-            .summarize(&messages)
-            .unwrap_or("Failed to summarize the chat".to_string());
-        if let Err(e) = client.send_message(chat, summary).await {
-            log::error!("Error sending message: {:?}", e);
-        }
     }
 }

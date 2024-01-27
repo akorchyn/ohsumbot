@@ -7,12 +7,6 @@ pub struct Db {
 }
 
 impl Db {
-    #[cfg(test)]
-    pub fn new() -> anyhow::Result<Self> {
-        let connection = Connection::open_in_memory()?;
-        Ok(Self { connection })
-    }
-
     pub fn new_with_file(filename: &str) -> anyhow::Result<Self> {
         let connection = Connection::open(filename)?;
         Ok(Self { connection })

@@ -1,5 +1,8 @@
+use std::sync::Arc;
+
 use grammers_client::{Client, Config};
 use grammers_session::Session;
+use tokio::sync::RwLock;
 
 pub mod consts;
 mod db;
@@ -24,7 +27,7 @@ struct BotInfo {
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
     env_logger::init();
-    let db = db::Db::new_with_file(DB_NAME)?;
+    let db = Arc::new(RwLock::new(db::Db::new_with_file(DB_NAME)?));
     let env: BotInfo = envy::from_env()?;
 
     let client = Client::connect(Config {
@@ -39,16 +42,21 @@ async fn main() -> anyhow::Result<()> {
         client.bot_sign_in(&env.bot_token).await?;
     }
 
-    let openai = openai::OpenAIClient::new(env.openai_api_key);
+    let openai_api: openai::api::OpenAIClient = openai::api::OpenAIClient::new(env.openai_api_key);
+    let processor = openai::processor::Processor::new(client.clone(), db.clone(), openai_api);
+    let (processor_handle, processor_queue) = processor.run().await;
 
-    let mut processor = telegram::Processor::new(client.clone(), db, openai);
+    let mut bot = telegram::Processor::new(client.clone(), db.clone(), processor_queue);
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
             println!("Ctrl-C received, shutting down...");
         }
-        r = processor.process_updates() => {
+        r = bot.process_updates() => {
             println!("Error processing updates: {:?}", r);
+        }
+        _ = processor_handle => {
+            println!("Error processing commands");
         }
     }
 
