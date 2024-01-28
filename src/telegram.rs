@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use grammers_client::{
-    types::{Chat, Message},
+    types::{Chat, Message, User},
     Client, Update,
 };
 use tokio::sync::RwLock;
@@ -19,19 +19,22 @@ pub struct Processor {
     client: Client,
     db: Arc<RwLock<Db>>,
     sender_channel: tokio::sync::mpsc::Sender<Command>,
+    me: User,
 }
 
 impl Processor {
-    pub fn new(
+    pub async fn new(
         client: Client,
         db: Arc<RwLock<Db>>,
         sender: tokio::sync::mpsc::Sender<Command>,
-    ) -> Self {
-        Self {
+    ) -> anyhow::Result<Self> {
+        let me = client.get_me().await?;
+        Ok(Self {
             client,
             db,
             sender_channel: sender,
-        }
+            me,
+        })
     }
 
     pub async fn process_updates(&mut self) -> anyhow::Result<()> {
@@ -53,8 +56,11 @@ impl Processor {
 
     async fn process_message(&mut self, message: Message) -> anyhow::Result<()> {
         let mut splitted_string = message.text().split_whitespace();
-        let cmd = if let Some(text) = splitted_string.next() {
-            text
+        let (cmd, bot_name) = if let Some(text) = splitted_string.next() {
+            let mut split = text.split("@");
+            let cmd = split.next().unwrap_or("");
+            let bot_name = split.next();
+            (cmd, bot_name)
         } else {
             return Ok(());
         };
@@ -65,6 +71,10 @@ impl Processor {
                 _ => false,
             })
             .unwrap_or(false);
+
+        if bot_name.is_some() && bot_name != self.me.username() {
+            return Ok(());
+        }
 
         if cmd == "/help" {
             self.client.send_message(&message.chat(), usage()).await?;
