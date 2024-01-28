@@ -1,0 +1,17 @@
+on:
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - name: git pull and build
+        run: |
+          cd /home/ubuntu/ohsumbot
+          git pull origin master
+          cargo build --release
+          docker-compose build --no-cache
+          docker-compose up -d
+        shell: bash
+    
