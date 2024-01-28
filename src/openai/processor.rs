@@ -29,6 +29,7 @@ pub enum Command {
         recipient: Chat,
         message_count: u32,
         gpt_length: GPTLenght,
+        mentione_by_user: Option<String>,
     },
     SendPrompt {
         recipient: Chat,
@@ -123,49 +124,16 @@ impl Processor {
                 recipient,
                 message_count,
                 gpt_length,
+                mentione_by_user,
             } => {
-                log::info!("Proccessing summarize command");
-                let chat = &chat;
-                let messages_id_to_load: Vec<i32> = self
-                    .db
-                    .read()
-                    .await
-                    .get_messages_id(chat.id(), message_count)?;
-                let mut messages = Vec::with_capacity(message_count as usize);
-                for i in 0..(messages_id_to_load.len() / consts::TELEGRAM_MAX_MESSAGE_FETCH + 1) {
-                    let minimum = i * consts::TELEGRAM_MAX_MESSAGE_FETCH;
-                    let maximum = ((i + 1) * consts::TELEGRAM_MAX_MESSAGE_FETCH)
-                        .min(messages_id_to_load.len());
-                    let fetch_slice = &messages_id_to_load[minimum..maximum];
-                    let fetched_messages = self
-                        .client
-                        .get_messages_by_id(chat, fetch_slice)
-                        .await?
-                        .into_iter()
-                        .flatten()
-                        .collect::<Vec<_>>();
-                    messages.extend(fetched_messages);
-                }
-                log::info!(
-                    "Creating prompts for summarization within {} messages",
-                    messages.len()
-                );
-                let prompts = self
-                    .openai
-                    .prepare_summarize_prompts(&messages)
-                    .into_iter()
-                    .map(|prompt| -> Command {
-                        Command::SendPrompt {
-                            recipient: recipient.clone(),
-                            prompt,
-                            gpt_length: gpt_length.clone(),
-                        }
-                    })
-                    .collect();
-                Ok(CommandResult {
-                    new_commands: prompts,
-                    should_retry: false,
-                })
+                self.prepare_summary_prompts(
+                    chat,
+                    recipient,
+                    message_count,
+                    gpt_length,
+                    mentione_by_user,
+                )
+                .await
             }
             Command::SendPrompt {
                 recipient,
@@ -196,5 +164,80 @@ impl Processor {
                 }
             }
         }
+    }
+
+    async fn prepare_summary_prompts(
+        &self,
+        chat: Chat,
+        recipient: Chat,
+        message_count: u32,
+        gpt_length: GPTLenght,
+        mentioned_by_user: Option<String>,
+    ) -> anyhow::Result<CommandResult> {
+        log::info!("Proccessing summarize command");
+        let chat = &chat;
+        let messages_id_to_load: Vec<i32> = self
+            .db
+            .read()
+            .await
+            .get_messages_id(chat.id(), message_count)?;
+        let mut messages = Vec::with_capacity(message_count as usize);
+        for i in 0..(messages_id_to_load.len() / consts::TELEGRAM_MAX_MESSAGE_FETCH + 1) {
+            let minimum = i * consts::TELEGRAM_MAX_MESSAGE_FETCH;
+            let maximum =
+                ((i + 1) * consts::TELEGRAM_MAX_MESSAGE_FETCH).min(messages_id_to_load.len());
+            let fetch_slice = &messages_id_to_load[minimum..maximum];
+            let fetched_messages = self
+                .client
+                .get_messages_by_id(chat, fetch_slice)
+                .await?
+                .into_iter()
+                .flatten()
+                .filter(|message| {
+                    if let Some(mentioned_by_user) = mentioned_by_user.as_ref() {
+                        if let Some(sender) = message.sender() {
+                            if let Chat::User(user) = sender {
+                                if user.username() == Some(mentioned_by_user) {
+                                    return true;
+                                }
+                            }
+                        }
+                        return false;
+                    }
+                    true
+                })
+                .collect::<Vec<_>>();
+            messages.extend(fetched_messages);
+        }
+        if messages.is_empty() {
+            self.client
+                .send_message(recipient, "No messages found")
+                .await?;
+            return Ok(CommandResult {
+                new_commands: vec![],
+                should_retry: false,
+            });
+        }
+
+        log::info!(
+            "Creating prompts for summarization within {} messages",
+            messages.len()
+        );
+        let prompts = self
+            .openai
+            .prepare_summarize_prompts(&messages)
+            .into_iter()
+            .map(|prompt| -> Command {
+                Command::SendPrompt {
+                    recipient: recipient.clone(),
+                    prompt,
+                    gpt_length: gpt_length.clone(),
+                }
+            })
+            .collect();
+        Ok(CommandResult {
+            new_commands: prompts,
+            should_retry: false,
+        })
     }
 }

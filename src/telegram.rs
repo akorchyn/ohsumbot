@@ -111,6 +111,11 @@ impl Processor {
             .unwrap_or(consts::DEFAULT_SUMMARY_LENGTH)
             .min(consts::MESSAGE_TO_STORE);
 
+        let filter_by_user = splitted_string
+            .nth(2)
+            .and_then(|s| s.parse::<String>().ok())
+            .map(|s| s.trim_start_matches('@').to_string());
+
         let sender = if let Some(sender) = message.sender() {
             if self
                 .client
@@ -137,12 +142,14 @@ impl Processor {
                 .await?;
             return Ok(());
         };
+
         self.sender_channel
             .send(Command::Summarize {
                 chat: message.chat(),
                 recipient: sender,
                 message_count: count,
                 gpt_length,
+                mentioned_by_user: filter_by_user,
             })
             .await?;
 
