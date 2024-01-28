@@ -149,7 +149,7 @@ impl Processor {
                 recipient: sender,
                 message_count: count,
                 gpt_length,
-                mentioned_by_user: filter_by_user,
+                mentione_by_user: filter_by_user,
             })
             .await?;
 
