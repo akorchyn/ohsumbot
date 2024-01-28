@@ -16,15 +16,24 @@ pub struct Processor {
 }
 
 #[derive(Clone)]
+pub enum GPTLenght {
+    Short,
+    Medium,
+    Long,
+}
+
+#[derive(Clone)]
 pub enum Command {
     Summarize {
         chat: Chat,
         recipient: Chat,
         message_count: u32,
+        gpt_length: GPTLenght,
     },
     SendPrompt {
         recipient: Chat,
         prompt: String,
+        gpt_length: GPTLenght,
     },
 }
 
@@ -113,6 +122,7 @@ impl Processor {
                 chat,
                 recipient,
                 message_count,
+                gpt_length,
             } => {
                 log::info!("Proccessing summarize command");
                 let chat = &chat;
@@ -148,6 +158,7 @@ impl Processor {
                         Command::SendPrompt {
                             recipient: recipient.clone(),
                             prompt,
+                            gpt_length: gpt_length.clone(),
                         }
                     })
                     .collect();
@@ -156,9 +167,13 @@ impl Processor {
                     should_retry: false,
                 })
             }
-            Command::SendPrompt { recipient, prompt } => {
+            Command::SendPrompt {
+                recipient,
+                prompt,
+                gpt_length,
+            } => {
                 log::info!("Sending prompt");
-                let result = self.openai.send_prompt(prompt);
+                let result = self.openai.send_prompt(prompt, gpt_length);
                 match result {
                     Ok(result) => {
                         let message = result.choices[0].message.content.as_ref().unwrap();

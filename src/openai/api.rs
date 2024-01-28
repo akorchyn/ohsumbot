@@ -7,6 +7,8 @@ use openai_api_rs::v1::{
 
 use crate::consts;
 
+use super::processor::GPTLenght;
+
 const PROMPT: &str = r#"You are sumarization bot that helps telegram users to keep track of the conversation.
 Summarize the messages from the chat below. The chat follow chronological order.
 The summary will be sent to the user who requested it and should be easy to read and understand.
@@ -58,8 +60,18 @@ impl OpenAIClient {
         prompt
     }
 
-    pub fn send_prompt(&self, prompt: String) -> anyhow::Result<ChatCompletionResponse> {
+    pub fn send_prompt(
+        &self,
+        prompt: String,
+        gpt_length: GPTLenght,
+    ) -> anyhow::Result<ChatCompletionResponse> {
         let client: Client = Client::new(self.api_key.clone());
+
+        let max_tokens = match gpt_length {
+            GPTLenght::Short => 32,
+            GPTLenght::Medium => 64,
+            GPTLenght::Long => 128,
+        };
 
         let req = ChatCompletionRequest::new(
             GPT3_5_TURBO.to_string(),
@@ -69,7 +81,10 @@ impl OpenAIClient {
                 name: Some("Sumbot".to_string()),
                 function_call: None,
             }],
-        );
+        )
+        .max_tokens(max_tokens)
+        .temperature(0.5)
+        .top_p(0.5);
 
         let result = client.chat_completion(req)?;
         if result.choices.is_empty() || result.choices[0].message.content.is_none() {

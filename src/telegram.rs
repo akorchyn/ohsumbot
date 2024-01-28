@@ -13,7 +13,11 @@ We don't store your messages. We store only latest {} message ids that will be u
 consts::MESSAGE_TO_STORE)
 }
 
-use crate::{consts, db::Db, openai::processor::Command};
+use crate::{
+    consts,
+    db::Db,
+    openai::processor::{Command, GPTLenght},
+};
 
 pub struct Processor {
     client: Client,
@@ -78,8 +82,15 @@ impl Processor {
 
         if cmd == "/help" {
             self.client.send_message(&message.chat(), usage()).await?;
-        } else if cmd == "/summarize" {
-            self.summarize(message).await?;
+        } else if cmd == "/summarize" || cmd == "/small " || cmd == "/medium" || cmd == "/large" {
+            let length = match cmd {
+                "/summarize" => GPTLenght::Medium,
+                "/small" => GPTLenght::Short,
+                "/medium" => GPTLenght::Medium,
+                "/large" => GPTLenght::Long,
+                _ => unreachable!(),
+            };
+            self.summarize(message, length).await?;
         } else if cmd.starts_with("/") || is_bot {
         } else {
             self.db
@@ -91,7 +102,7 @@ impl Processor {
         Ok(())
     }
 
-    async fn summarize(&mut self, message: Message) -> anyhow::Result<()> {
+    async fn summarize(&mut self, message: Message, gpt_length: GPTLenght) -> anyhow::Result<()> {
         let mut splitted_string = message.text().split_whitespace();
 
         let count = splitted_string
@@ -131,6 +142,7 @@ impl Processor {
                 chat: message.chat(),
                 recipient: sender,
                 message_count: count,
+                gpt_length,
             })
             .await?;
 
