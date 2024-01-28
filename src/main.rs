@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
     let processor = openai::processor::Processor::new(client.clone(), db.clone(), openai_api);
     let (processor_handle, processor_queue) = processor.run().await;
 
-    let mut bot = telegram::Processor::new(client.clone(), db.clone(), processor_queue);
+    let mut bot = telegram::Processor::new(client.clone(), db.clone(), processor_queue).await?;
 
     tokio::select! {
         _ = tokio::signal::ctrl_c() => {
