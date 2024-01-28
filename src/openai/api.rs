@@ -68,9 +68,9 @@ impl OpenAIClient {
         let client: Client = Client::new(self.api_key.clone());
 
         let max_tokens = match gpt_length {
-            GPTLenght::Short => 32,
-            GPTLenght::Medium => 64,
-            GPTLenght::Long => 128,
+            GPTLenght::Short => 64,
+            GPTLenght::Medium => 128,
+            GPTLenght::Long => 256,
         };
 
         let req = ChatCompletionRequest::new(
