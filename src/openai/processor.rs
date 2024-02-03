@@ -10,6 +10,7 @@ use crate::db::Db;
 use crate::openai::api::OpenAIClient;
 
 pub use super::api::GPTLenght;
+use super::api::Prompt;
 
 pub struct Processor {
     client: Client,
@@ -28,8 +29,7 @@ pub enum Command {
     },
     SendPrompt {
         recipient: Chat,
-        prompt: String,
-        gpt_length: GPTLenght,
+        prompt: Prompt,
     },
 }
 
@@ -121,7 +121,7 @@ impl Processor {
                 gpt_length,
                 mentione_by_user,
             } => {
-                self.prepare_summary_prompts(
+                self.prepare_summary_prompt(
                     chat,
                     recipient,
                     message_count,
@@ -130,13 +130,9 @@ impl Processor {
                 )
                 .await
             }
-            Command::SendPrompt {
-                recipient,
-                prompt,
-                gpt_length,
-            } => {
+            Command::SendPrompt { recipient, prompt } => {
                 log::info!("Sending prompt");
-                let result = self.openai.send_prompt(prompt, gpt_length);
+                let result = self.openai.send_prompt(prompt);
                 match result {
                     Ok(result) => {
                         let message = result.choices[0].message.content.as_ref().unwrap();
@@ -161,7 +157,7 @@ impl Processor {
         }
     }
 
-    async fn prepare_summary_prompts(
+    async fn prepare_summary_prompt(
         &self,
         chat: Chat,
         recipient: Chat,
@@ -228,7 +224,6 @@ impl Processor {
                 Command::SendPrompt {
                     recipient: recipient.clone(),
                     prompt,
-                    gpt_length,
                 }
             })
             .collect();

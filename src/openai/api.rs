@@ -69,6 +69,12 @@ pub struct OpenAIClient {
     api_key: String,
 }
 
+#[derive(Clone)]
+pub struct Prompt {
+    messages: Vec<ChatCompletionMessage>,
+    gpt_length: GPTLenght,
+}
+
 impl OpenAIClient {
     pub fn new(api_key: String) -> Self {
         Self { api_key }
@@ -78,22 +84,30 @@ impl OpenAIClient {
         &self,
         messages: &[Message],
         gpt_length: GPTLenght,
-    ) -> Vec<String> {
+    ) -> Option<Prompt> {
         if messages.is_empty() {
-            return vec![];
+            return None;
         }
 
-        let prompt_header = || {
-            format!(
-                "{}\n{}\n{}\n\n```",
-                PROMPT,
-                gpt_length.to_prompt_text(),
-                PROMPT_HEADER_FINAL,
-            )
+        let system_message = format!(
+            "{}\n{}\n{}\n\n```",
+            PROMPT,
+            gpt_length.to_prompt_text(),
+            PROMPT_HEADER_FINAL,
+        );
+        let user_message = |message| ChatCompletionMessage {
+            role: chat_completion::MessageRole::user,
+            content: chat_completion::Content::Text(message),
+            name: None,
         };
 
-        let mut prompt = vec![];
-        let mut msg = prompt_header();
+        let system_message = ChatCompletionMessage {
+            role: chat_completion::MessageRole::system,
+            content: chat_completion::Content::Text(system_message),
+            name: None,
+        };
+        let mut prompt = vec![system_message];
+        let mut msg = String::new();
         for (i, message) in messages.iter().rev().enumerate() {
             let new_line = format!(
                 "{}. [@{}]: \"{}\"\n",
@@ -106,36 +120,27 @@ impl OpenAIClient {
             );
             if msg.len() + new_line.len() > consts::TOKEN_LIMITS_PER_MESSAGE {
                 msg.push_str("```");
-                prompt.push(msg);
-                msg = prompt_header() + &new_line;
+                prompt.push(user_message(msg));
+                msg = new_line;
             } else {
                 msg.push_str(&new_line);
             }
         }
         msg.push_str("```");
-        prompt.push(msg);
-        prompt
+        prompt.push(user_message(msg));
+        Some(Prompt {
+            messages: prompt,
+            gpt_length,
+        })
     }
 
-    pub fn send_prompt(
-        &self,
-        prompt: String,
-        gpt_length: GPTLenght,
-    ) -> anyhow::Result<ChatCompletionResponse> {
+    pub fn send_prompt(&self, prompt: Prompt) -> anyhow::Result<ChatCompletionResponse> {
         let client: Client = Client::new(self.api_key.clone());
 
-        let req = ChatCompletionRequest::new(
-            GPT3_5_TURBO.to_string(),
-            vec![ChatCompletionMessage {
-                role: chat_completion::MessageRole::assistant,
-                content: prompt,
-                name: Some("Sumbot".to_string()),
-                function_call: None,
-            }],
-        )
-        .max_tokens(gpt_length.to_max_tokens())
-        .temperature(0.5)
-        .top_p(0.5);
+        let req = ChatCompletionRequest::new(GPT3_5_TURBO.to_string(), prompt.messages)
+            .max_tokens(prompt.gpt_length.to_max_tokens())
+            .temperature(0.5)
+            .top_p(0.5);
 
         let result = client.chat_completion(req)?;
         if result.choices.is_empty() || result.choices[0].message.content.is_none() {
