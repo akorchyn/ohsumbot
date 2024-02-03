@@ -181,6 +181,10 @@ impl Processor {
             let minimum = i * consts::TELEGRAM_MAX_MESSAGE_FETCH;
             let maximum =
                 ((i + 1) * consts::TELEGRAM_MAX_MESSAGE_FETCH).min(messages_id_to_load.len());
+            if minimum == maximum {
+                break;
+            }
+
             let fetch_slice = &messages_id_to_load[minimum..maximum];
             let fetched_messages = self
                 .client
