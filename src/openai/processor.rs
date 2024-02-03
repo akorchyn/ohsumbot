@@ -9,17 +9,12 @@ use crate::consts;
 use crate::db::Db;
 use crate::openai::api::OpenAIClient;
 
+pub use super::api::GPTLenght;
+
 pub struct Processor {
     client: Client,
     db: Arc<RwLock<Db>>,
     openai: OpenAIClient,
-}
-
-#[derive(Clone)]
-pub enum GPTLenght {
-    Short,
-    Medium,
-    Long,
 }
 
 #[derive(Clone)]
@@ -225,13 +220,13 @@ impl Processor {
         );
         let prompts = self
             .openai
-            .prepare_summarize_prompts(&messages)
+            .prepare_summarize_prompts(&messages, gpt_length)
             .into_iter()
             .map(|prompt| -> Command {
                 Command::SendPrompt {
                     recipient: recipient.clone(),
                     prompt,
-                    gpt_length: gpt_length.clone(),
+                    gpt_length: gpt_length,
                 }
             })
             .collect();
