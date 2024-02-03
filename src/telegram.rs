@@ -76,13 +76,13 @@ impl Processor {
             })
             .unwrap_or(false);
 
-        if bot_name.is_some() && bot_name != self.me.username() {
+        if bot_name.is_some() && bot_name != Some("") && bot_name != self.me.username() {
             return Ok(());
         }
 
         if cmd == "/help" {
             self.client.send_message(&message.chat(), usage()).await?;
-        } else if cmd == "/summarize" || cmd == "/small " || cmd == "/medium" || cmd == "/large" {
+        } else if cmd == "/summarize" || cmd == "/small" || cmd == "/medium" || cmd == "/large" {
             let length = match cmd {
                 "/summarize" => GPTLenght::Medium,
                 "/small" => GPTLenght::Short,
