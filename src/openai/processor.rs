@@ -89,12 +89,9 @@ impl Processor {
                         log::info!("Processing command");
                         match self.process_command(command).await {
                             Ok(result) => {
-                                if !result.new_commands.is_empty() {
-                                    // We should send the new commands to the queue
-                                    let mut queue = queue.write().await;
-                                    queue.extend(result.new_commands);
-                                    queue.remove(0);
-                                }
+                                let mut queue = queue.write().await;
+                                queue.extend(result.new_commands);
+                                queue.remove(0);
                             }
                             Err(e) => {
                                 log::error!("Error processing command: {e}");
@@ -168,9 +165,6 @@ impl Processor {
                             .send_message(&recipient, message.to_string())
                             .await
                             .map_err(|e| anyhow::anyhow!(e))?;
-                        Ok(CommandResult {
-                            new_commands: vec![],
-                        })
                     }
                     Err(e) => {
                         log::error!("Error sending prompt: {:?}", e);
@@ -180,11 +174,11 @@ impl Processor {
                                 "Failed to summarize the chat. Try again later",
                             )
                             .await?;
-                        Ok(CommandResult {
-                            new_commands: vec![],
-                        })
                     }
                 }
+                Ok(CommandResult {
+                    new_commands: vec![],
+                })
             }
         }
     }
