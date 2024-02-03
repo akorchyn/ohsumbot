@@ -23,6 +23,12 @@ struct BotInfo {
     openai_api_key: String,
 }
 
+static FIXED_RECONNECT_POLICY: grammers_mtsender::FixedReconnect =
+    grammers_mtsender::FixedReconnect {
+        attempts: 5,
+        delay: std::time::Duration::from_secs(5),
+    };
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
@@ -34,7 +40,11 @@ async fn main() -> anyhow::Result<()> {
         session: Session::load_file_or_create(SESSION_NAME)?,
         api_id: env.tg_api_id,
         api_hash: env.tg_api_hash,
-        params: Default::default(),
+        params: grammers_client::InitParams {
+            catch_up: true,
+            reconnection_policy: &FIXED_RECONNECT_POLICY,
+            ..Default::default()
+        },
     })
     .await?;
 
