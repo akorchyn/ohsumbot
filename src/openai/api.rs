@@ -17,17 +17,17 @@ pub enum GPTLenght {
 impl GPTLenght {
     fn to_max_tokens(self) -> i64 {
         match self {
-            GPTLenght::Short => 64,
-            GPTLenght::Medium => 128,
-            GPTLenght::Long => 256,
+            GPTLenght::Short => 256,
+            GPTLenght::Medium => 512,
+            GPTLenght::Long => 1024,
         }
     }
 
     fn to_prompt_text(self) -> String {
         let result = match self {
-            GPTLenght::Short => "20 words",
-            GPTLenght::Medium => "50 words",
-            GPTLenght::Long => "100 words",
+            GPTLenght::Short => "50 words",
+            GPTLenght::Medium => "100 words",
+            GPTLenght::Long => "200 words",
         };
         format!("The prompt response shouldn't be longer than {}. Please maintain the clarity given that restriction.", result)
     }

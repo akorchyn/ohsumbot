@@ -27,6 +27,12 @@ pub enum Command {
         gpt_length: GPTLenght,
         mentione_by_user: Option<String>,
     },
+    SummarizeMessage {
+        chat: Chat,
+        recipient: Chat,
+        message_id: i32,
+        gpt_length: GPTLenght,
+    },
     SendPrompt {
         recipient: Chat,
         prompt: Prompt,
@@ -83,13 +89,7 @@ impl Processor {
                         log::info!("Processing command");
                         match self.process_command(command).await {
                             Ok(result) => {
-                                if result.should_retry {
-                                    log::info!(
-                                        "The command should be retried. Sleeping for 60 secs"
-                                    );
-                                    // We probably hit the rate limit, so we should wait a bit
-                                    tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-                                } else {
+                                if !result.new_commands.is_empty() {
                                     // We should send the new commands to the queue
                                     let mut queue = queue.write().await;
                                     queue.extend(result.new_commands);
@@ -128,6 +128,35 @@ impl Processor {
                     mentione_by_user,
                 )
                 .await
+            }
+            Command::SummarizeMessage {
+                chat,
+                recipient,
+                message_id,
+                gpt_length,
+            } => {
+                let message = self
+                    .client
+                    .get_messages_by_id(chat, &[message_id])
+                    .await?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>();
+                let result = self
+                    .openai
+                    .prepare_summarize_prompts(&message, gpt_length)
+                    .into_iter()
+                    .map(|prompt| -> Command {
+                        Command::SendPrompt {
+                            recipient: recipient.clone(),
+                            prompt,
+                        }
+                    })
+                    .collect();
+
+                Ok(CommandResult {
+                    new_commands: result,
+                })
             }
             Command::SendPrompt { recipient, prompt } => {
                 log::info!("Sending prompt");

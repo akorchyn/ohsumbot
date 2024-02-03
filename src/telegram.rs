@@ -105,11 +105,17 @@ impl Processor {
     async fn summarize(&mut self, message: Message, gpt_length: GPTLenght) -> anyhow::Result<()> {
         let mut splitted_string = message.text().split_whitespace();
 
-        let count = splitted_string
-            .nth(1)
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or(consts::DEFAULT_SUMMARY_LENGTH)
-            .min(consts::MESSAGE_TO_STORE);
+        let reply = message.reply_to_message_id();
+
+        let count = if reply.is_some() {
+            1
+        } else {
+            splitted_string
+                .nth(1)
+                .and_then(|s| s.parse::<u32>().ok())
+                .unwrap_or(consts::DEFAULT_SUMMARY_LENGTH)
+                .min(consts::MESSAGE_TO_STORE)
+        };
 
         let filter_by_user = splitted_string
             .nth(2)
@@ -143,15 +149,23 @@ impl Processor {
             return Ok(());
         };
 
-        self.sender_channel
-            .send(Command::Summarize {
+        let command = match reply {
+            Some(reply) => Command::SummarizeMessage {
+                chat: message.chat(),
+                recipient: sender,
+                message_id: reply,
+                gpt_length,
+            },
+            None => Command::Summarize {
                 chat: message.chat(),
                 recipient: sender,
                 message_count: count,
                 gpt_length,
                 mentione_by_user: filter_by_user,
-            })
-            .await?;
+            },
+        };
+
+        self.sender_channel.send(command).await?;
 
         Ok(())
     }
