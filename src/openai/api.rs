@@ -1,5 +1,3 @@
-use std::fmt::format;
-
 use grammers_client::types::Message;
 use openai_api_rs::v1::{
     api::Client,
@@ -17,7 +15,7 @@ pub enum GPTLenght {
 }
 
 impl GPTLenght {
-    fn to_max_tokens(&self) -> i64 {
+    fn to_max_tokens(self) -> i64 {
         match self {
             GPTLenght::Short => 64,
             GPTLenght::Medium => 128,
@@ -25,7 +23,7 @@ impl GPTLenght {
         }
     }
 
-    fn to_prompt_text(&self) -> String {
+    fn to_prompt_text(self) -> String {
         let result = match self {
             GPTLenght::Short => "20 words",
             GPTLenght::Medium => "50 words",

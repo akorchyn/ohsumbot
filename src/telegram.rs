@@ -4,7 +4,7 @@ use grammers_client::{
     types::{Chat, Message, User},
     Client, Update,
 };
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 
 fn usage() -> String {
     format!("Usage: ./summarize <number of messages to summarize>
@@ -21,7 +21,7 @@ use crate::{
 
 pub struct Processor {
     client: Client,
-    db: Arc<RwLock<Db>>,
+    db: Arc<Mutex<Db>>,
     sender_channel: tokio::sync::mpsc::Sender<Command>,
     me: User,
 }
@@ -29,7 +29,7 @@ pub struct Processor {
 impl Processor {
     pub async fn new(
         client: Client,
-        db: Arc<RwLock<Db>>,
+        db: Arc<Mutex<Db>>,
         sender: tokio::sync::mpsc::Sender<Command>,
     ) -> anyhow::Result<Self> {
         let me = client.get_me().await?;
@@ -61,7 +61,7 @@ impl Processor {
     async fn process_message(&mut self, message: Message) -> anyhow::Result<()> {
         let mut splitted_string = message.text().split_whitespace();
         let (cmd, bot_name) = if let Some(text) = splitted_string.next() {
-            let mut split = text.split("@");
+            let mut split = text.split('@');
             let cmd = split.next().unwrap_or("");
             let bot_name = split.next();
             (cmd, bot_name)
@@ -91,10 +91,10 @@ impl Processor {
                 _ => unreachable!(),
             };
             self.summarize(message, length).await?;
-        } else if cmd.starts_with("/") || is_bot {
+        } else if cmd.starts_with('/') || is_bot {
         } else {
             self.db
-                .write()
+                .lock()
                 .await
                 .add_message_id(message.chat().id(), message.id())?;
         }

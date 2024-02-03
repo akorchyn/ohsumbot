@@ -3,7 +3,7 @@ use std::sync::Arc;
 use futures::future::join;
 use grammers_client::types::Chat;
 use grammers_client::Client;
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 
 use crate::consts;
 use crate::db::Db;
@@ -13,7 +13,7 @@ pub use super::api::GPTLenght;
 
 pub struct Processor {
     client: Client,
-    db: Arc<RwLock<Db>>,
+    db: Arc<Mutex<Db>>,
     openai: OpenAIClient,
 }
 
@@ -40,7 +40,7 @@ struct CommandResult {
 
 impl Processor {
     // Creates processor and writing stream
-    pub fn new(client: Client, db: Arc<RwLock<Db>>, openai: OpenAIClient) -> Self {
+    pub fn new(client: Client, db: Arc<Mutex<Db>>, openai: OpenAIClient) -> Self {
         Self { client, db, openai }
     }
 
@@ -109,7 +109,7 @@ impl Processor {
                 }
             }
         };
-        return (join(msg_handler, processor), tx);
+        (join(msg_handler, processor), tx)
     }
 
     async fn process_command(&mut self, command: Command) -> anyhow::Result<CommandResult> {
@@ -173,7 +173,7 @@ impl Processor {
         let chat = &chat;
         let messages_id_to_load: Vec<i32> = self
             .db
-            .read()
+            .lock()
             .await
             .get_messages_id(chat.id(), message_count)?;
         let mut messages = Vec::with_capacity(message_count as usize);
@@ -190,11 +190,9 @@ impl Processor {
                 .flatten()
                 .filter(|message| {
                     if let Some(mentioned_by_user) = mentioned_by_user.as_ref() {
-                        if let Some(sender) = message.sender() {
-                            if let Chat::User(user) = sender {
-                                if user.username() == Some(mentioned_by_user) {
-                                    return true;
-                                }
+                        if let Some(Chat::User(user)) = message.sender() {
+                            if user.username() == Some(mentioned_by_user) {
+                                return true;
                             }
                         }
                         return false;
@@ -226,7 +224,7 @@ impl Processor {
                 Command::SendPrompt {
                     recipient: recipient.clone(),
                     prompt,
-                    gpt_length: gpt_length,
+                    gpt_length,
                 }
             })
             .collect();
