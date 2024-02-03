@@ -35,7 +35,6 @@ pub enum Command {
 
 struct CommandResult {
     new_commands: Vec<Command>,
-    should_retry: bool,
 }
 
 impl Processor {
@@ -142,14 +141,18 @@ impl Processor {
                             .map_err(|e| anyhow::anyhow!(e))?;
                         Ok(CommandResult {
                             new_commands: vec![],
-                            should_retry: false,
                         })
                     }
                     Err(e) => {
                         log::error!("Error sending prompt: {:?}", e);
+                        self.client
+                            .send_message(
+                                recipient,
+                                "Failed to summarize the chat. Try again later",
+                            )
+                            .await?;
                         Ok(CommandResult {
                             new_commands: vec![],
-                            should_retry: true,
                         })
                     }
                 }
@@ -208,7 +211,6 @@ impl Processor {
                 .await?;
             return Ok(CommandResult {
                 new_commands: vec![],
-                should_retry: false,
             });
         }
 
@@ -229,7 +231,6 @@ impl Processor {
             .collect();
         Ok(CommandResult {
             new_commands: prompts,
-            should_retry: false,
         })
     }
 }
