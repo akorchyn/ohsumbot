@@ -195,9 +195,10 @@ impl OpenAIClient {
 
         let req = AudioBody {
             file,
+            filename: audio_file.to_string(),
             model: "whisper-1".to_string(),
             prompt: None,
-            response_format: Some("text".to_string()),
+            response_format: None,
             temperature: Some(0.2),
             language: None,
         };
@@ -207,5 +208,37 @@ impl OpenAIClient {
             .map_err(|e| anyhow::anyhow!(e))?;
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn send_audio() {
+        let openai = OpenAIClient::new(std::env::var("OPENAI_API_KEY").unwrap());
+        let result = openai.audio_to_text("./data/example.mp3").unwrap();
+        println!("{:?}", result);
+        assert!(result.text.unwrap().len() > 0);
+    }
+
+    #[test]
+    fn send_prompt() {
+        let openai = OpenAIClient::new(std::env::var("OPENAI_API_KEY").unwrap());
+        let prompt = Prompt {
+            system_message: OpenMessage {
+                role: Role::System,
+                content: "This is a test".to_string(),
+            },
+            user_message: OpenMessage {
+                role: Role::User,
+                content: "This is a test".to_string(),
+            },
+            gpt_length: GPTLenght::Short,
+        };
+        let result = openai.send_prompt(prompt).unwrap();
+        println!("{:?}", result);
+        assert!(result.choices[0].message.as_ref().unwrap().content.len() > 0);
     }
 }
