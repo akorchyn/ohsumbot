@@ -244,7 +244,16 @@ impl Processor {
                     log::info!("Converting video to audio");
                     let destination = format!("{}/{}.mp3", consts::MEDIA_DIR, message.id());
                     if !tokio::process::Command::new("ffmpeg")
-                        .args(["-i", &save_path, "-vn", "-acodec", "copy", &destination])
+                        .args([
+                            "-i",
+                            &save_path,
+                            "-vn",
+                            "-acodec",
+                            "libmp3lame",
+                            "-b:a",
+                            "128k",
+                            &destination,
+                        ])
                         .status()
                         .await?
                         .success()
