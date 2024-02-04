@@ -185,10 +185,10 @@ impl OpenAIClient {
         audio_file: &str,
     ) -> anyhow::Result<audio::AudioTranscriptionResponse> {
         let client: Client = Client::new(self.api_key.clone());
+        let file = std::fs::read_to_string(audio_file)?;
 
         let req =
-            AudioTranscriptionRequest::new(audio_file.to_string(), audio::WHISPER_1.to_string())
-                .temperature(0.2);
+            AudioTranscriptionRequest::new(file, audio::WHISPER_1.to_string()).temperature(0.2);
 
         let result = client.audio_transcription(req)?;
 

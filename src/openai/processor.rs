@@ -265,10 +265,16 @@ impl Processor {
                     }
                     destination
                 } else {
-                    save_path
+                    save_path.clone()
                 };
                 log::info!("Converting audio to text");
                 let text = self.openai.audio_to_text(&file)?;
+
+                // Remove the file
+                tokio::fs::remove_file(&file).await?;
+                if is_video {
+                    tokio::fs::remove_file(&save_path).await?;
+                }
 
                 log::info!("Summarizing transcribed text");
                 let result = self
