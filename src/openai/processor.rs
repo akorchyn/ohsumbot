@@ -227,6 +227,7 @@ impl Processor {
                 }) == Some(true) =>
             {
                 // Checked above
+                log::info!("Downloading media");
                 let mime: Mime = document.mime_type().unwrap().parse().unwrap();
                 let extension = mime.subtype().as_str();
                 let is_video = mime.type_() == mime::VIDEO;
@@ -240,17 +241,27 @@ impl Processor {
                 }
 
                 let file = if is_video {
+                    log::info!("Converting video to audio");
                     let destination = format!("{}/{}.mp3", consts::MEDIA_DIR, message.id());
-                    tokio::process::Command::new("ffmpeg")
+                    if !tokio::process::Command::new("ffmpeg")
                         .args(["-i", &save_path, "-vn", "-acodec", "copy", &destination])
-                        .output()
-                        .await?;
+                        .status()
+                        .await?
+                        .success()
+                    {
+                        self.client
+                            .send_message(recipient, "Failed to convert video to audio")
+                            .await?;
+                        return Ok(vec![]);
+                    }
                     destination
                 } else {
                     save_path
                 };
+                log::info!("Converting audio to text");
                 let text = self.openai.audio_to_text(&file)?;
 
+                log::info!("Summarizing transcribed text");
                 let result = self
                     .openai
                     .prepare_text_summary(&text.text, gpt_length)

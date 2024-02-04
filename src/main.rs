@@ -34,6 +34,8 @@ async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
     env_logger::init();
 
+    std::fs::create_dir_all(consts::MEDIA_DIR)?;
+
     let db = Arc::new(Mutex::new(db::Db::new_with_file(DB_NAME)?));
     let env: BotInfo = envy::from_env()?;
 
