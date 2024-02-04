@@ -141,9 +141,9 @@ impl Processor {
                 let result = self.openai.send_prompt(prompt);
                 match result {
                     Ok(result) => {
-                        let message = result.choices[0].message.content.as_ref().unwrap();
+                        let message = result.choices[0].message.as_ref().unwrap().content.as_ref();
                         self.client
-                            .send_message(&recipient, message.to_string())
+                            .send_message(&recipient, message)
                             .await
                             .map_err(|e| anyhow::anyhow!(e))?;
                     }
@@ -277,16 +277,23 @@ impl Processor {
                 }
 
                 log::info!("Summarizing transcribed text");
-                let result = self
-                    .openai
-                    .prepare_text_summary(&text.text, gpt_length)
-                    .into_iter()
-                    .map(|prompt| Command::SendPrompt {
-                        recipient: recipient.clone(),
-                        prompt,
-                    })
-                    .collect();
-                Ok(result)
+                if let Some(text) = text.text {
+                    let result = self
+                        .openai
+                        .prepare_text_summary(&text, gpt_length)
+                        .into_iter()
+                        .map(|prompt| Command::SendPrompt {
+                            recipient: recipient.clone(),
+                            prompt,
+                        })
+                        .collect();
+                    Ok(result)
+                } else {
+                    self.client
+                        .send_message(recipient, "Failed to transcribe audio")
+                        .await?;
+                    Ok(vec![])
+                }
             }
             _ => {
                 self.client

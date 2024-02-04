@@ -1,9 +1,9 @@
 use grammers_client::types::Message;
-use openai_api_rs::v1::{
-    api::Client,
-    audio::{self, AudioTranscriptionRequest},
-    chat_completion::{self, ChatCompletionMessage, ChatCompletionRequest, ChatCompletionResponse},
-    common::GPT3_5_TURBO,
+use openai_api_rust::{
+    audio::{Audio, AudioApi, AudioBody},
+    chat::{ChatApi, ChatBody},
+    completions::Completion,
+    Message as OpenMessage, Role,
 };
 
 use crate::consts;
@@ -16,7 +16,7 @@ pub enum GPTLenght {
 }
 
 impl GPTLenght {
-    fn to_max_tokens(self) -> i64 {
+    fn to_max_tokens(self) -> i32 {
         match self {
             GPTLenght::Short => 256,
             GPTLenght::Medium => 512,
@@ -72,8 +72,8 @@ pub struct OpenAIClient {
 
 #[derive(Clone)]
 pub struct Prompt {
-    system_message: ChatCompletionMessage,
-    user_message: ChatCompletionMessage,
+    system_message: OpenMessage,
+    user_message: OpenMessage,
     gpt_length: GPTLenght,
 }
 
@@ -126,16 +126,14 @@ impl OpenAIClient {
             PROMPT_HEADER_FINAL,
         );
         let system_message_len = system_message.len();
-        let user_message = |message| ChatCompletionMessage {
-            role: chat_completion::MessageRole::user,
-            content: chat_completion::Content::Text(message),
-            name: None,
+        let user_message = |message| OpenMessage {
+            role: Role::User,
+            content: message,
         };
 
-        let system_message = ChatCompletionMessage {
-            role: chat_completion::MessageRole::system,
-            content: chat_completion::Content::Text(system_message),
-            name: None,
+        let system_message = OpenMessage {
+            role: Role::System,
+            content: system_message,
         };
         let mut prompts: Vec<_> = vec![];
         let mut msg = String::new();
@@ -162,35 +160,51 @@ impl OpenAIClient {
         prompts
     }
 
-    pub fn send_prompt(&self, prompt: Prompt) -> anyhow::Result<ChatCompletionResponse> {
-        let client: Client = Client::new(self.api_key.clone());
+    pub fn send_prompt(&self, prompt: Prompt) -> anyhow::Result<Completion> {
+        let auth = openai_api_rust::Auth::new(&self.api_key);
+        let client = openai_api_rust::OpenAI::new(auth, "https://api.openai.com/v1/");
 
-        let req = ChatCompletionRequest::new(
-            GPT3_5_TURBO.to_string(),
-            vec![prompt.system_message, prompt.user_message],
-        )
-        .max_tokens(prompt.gpt_length.to_max_tokens())
-        .temperature(0.5)
-        .top_p(0.5);
+        let req = ChatBody {
+            model: "gpt-3.5-turbo".to_string(),
+            messages: vec![prompt.system_message, prompt.user_message],
+            max_tokens: Some(prompt.gpt_length.to_max_tokens()),
+            temperature: Some(0.5),
+            top_p: Some(0.5),
+            n: Some(1),
+            stream: None,
+            stop: None,
+            presence_penalty: None,
+            frequency_penalty: None,
+            logit_bias: None,
+            user: None,
+        };
 
-        let result = client.chat_completion(req)?;
-        if result.choices.is_empty() || result.choices[0].message.content.is_none() {
+        let result = client
+            .chat_completion_create(&req)
+            .map_err(|e| anyhow::anyhow!(e))?;
+        if result.choices.is_empty() || result.choices[0].message.is_none() {
             return Err(anyhow::anyhow!("Failed to summarize the chat"));
         }
         Ok(result)
     }
 
-    pub fn audio_to_text(
-        &self,
-        audio_file: &str,
-    ) -> anyhow::Result<audio::AudioTranscriptionResponse> {
-        let client: Client = Client::new(self.api_key.clone());
-        let file = std::fs::read_to_string(audio_file)?;
+    pub fn audio_to_text(&self, audio_file: &str) -> anyhow::Result<Audio> {
+        let auth = openai_api_rust::Auth::new(&self.api_key);
+        let client = openai_api_rust::OpenAI::new(auth, "https://api.openai.com/v1/");
+        let file = std::fs::File::open(audio_file)?;
 
-        let req =
-            AudioTranscriptionRequest::new(file, audio::WHISPER_1.to_string()).temperature(0.2);
+        let req = AudioBody {
+            file,
+            model: "whisper-1".to_string(),
+            prompt: None,
+            response_format: Some("text".to_string()),
+            temperature: Some(0.2),
+            language: None,
+        };
 
-        let result = client.audio_transcription(req)?;
+        let result = client
+            .audio_transcription_create(req)
+            .map_err(|e| anyhow::anyhow!(e))?;
 
         Ok(result)
     }

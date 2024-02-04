@@ -16,7 +16,7 @@ rusqlite = { version = "0.30.0"}
 envy = { version = "0.4" }
 serde = { version = "1.0", features = ["derive"] }
 anyhow = "1.0"
-openai-api-rs = "4.0"
+openai_api_rust = { git = "https://github.com/openai-rs/openai-api" }
 dotenv = "0.15.0"
 futures = "0.3.15"
 mime = "0.3.16"
