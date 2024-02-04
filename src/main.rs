@@ -33,6 +33,7 @@ static FIXED_RECONNECT_POLICY: grammers_mtsender::FixedReconnect =
 async fn main() -> anyhow::Result<()> {
     dotenv::dotenv().ok();
     env_logger::init();
+
     let db = Arc::new(Mutex::new(db::Db::new_with_file(DB_NAME)?));
     let env: BotInfo = envy::from_env()?;
 

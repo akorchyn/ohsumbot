@@ -1,8 +1,9 @@
 use std::sync::Arc;
 
 use futures::future::join;
-use grammers_client::types::Chat;
+use grammers_client::types::{Chat, Media, Message};
 use grammers_client::Client;
+use mime::Mime;
 use tokio::sync::{Mutex, RwLock};
 
 use crate::consts;
@@ -132,28 +133,8 @@ impl Processor {
                 message_id,
                 gpt_length,
             } => {
-                let message = self
-                    .client
-                    .get_messages_by_id(chat, &[message_id])
-                    .await?
-                    .into_iter()
-                    .flatten()
-                    .collect::<Vec<_>>();
-                let result = self
-                    .openai
-                    .prepare_summarize_prompts(&message, gpt_length)
-                    .into_iter()
-                    .map(|prompt| -> Command {
-                        Command::SendPrompt {
-                            recipient: recipient.clone(),
-                            prompt,
-                        }
-                    })
-                    .collect();
-
-                Ok(CommandResult {
-                    new_commands: result,
-                })
+                self.summarize_message(chat, recipient, message_id, gpt_length)
+                    .await
             }
             Command::SendPrompt { recipient, prompt } => {
                 log::info!("Sending prompt");
@@ -179,6 +160,113 @@ impl Processor {
                 Ok(CommandResult {
                     new_commands: vec![],
                 })
+            }
+        }
+    }
+
+    async fn summarize_message(
+        &self,
+        chat: Chat,
+        recipient: Chat,
+        message_id: i32,
+        gpt_length: GPTLenght,
+    ) -> anyhow::Result<CommandResult> {
+        let message = self
+            .client
+            .get_messages_by_id(&chat, &[message_id])
+            .await?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
+        let mut commands = vec![];
+
+        if let [message, ..] = message.as_slice() {
+            if let Some(media) = message.media() {
+                commands.extend(
+                    self.process_media(message, media, recipient.clone(), gpt_length)
+                        .await?,
+                );
+            }
+
+            if !message.text().is_empty() {
+                let prompt = self
+                    .openai
+                    .prepare_text_summary(message.text(), gpt_length)
+                    .into_iter()
+                    .map(|prompt| -> Command {
+                        Command::SendPrompt {
+                            recipient: recipient.clone(),
+                            prompt,
+                        }
+                    });
+                commands.extend(prompt);
+            }
+        }
+
+        Ok(CommandResult {
+            new_commands: commands,
+        })
+    }
+
+    async fn process_media(
+        &self,
+        message: &Message,
+        media: Media,
+        recipient: Chat,
+        gpt_length: GPTLenght,
+    ) -> anyhow::Result<Vec<Command>> {
+        match media {
+            Media::Document(document)
+                if document.mime_type().map(|s| {
+                    let mime: Result<Mime, _> = s.parse();
+                    if let Ok(mime) = mime {
+                        mime.type_() == mime::AUDIO || mime.type_() == mime::VIDEO
+                    } else {
+                        false
+                    }
+                }) == Some(true) =>
+            {
+                // Checked above
+                let mime: Mime = document.mime_type().unwrap().parse().unwrap();
+                let extension = mime.subtype().as_str();
+                let is_video = mime.type_() == mime::VIDEO;
+                let save_path = format!("{}/{}.{}", consts::MEDIA_DIR, message.id(), extension);
+                let downloaded = message.download_media(&save_path).await?;
+                if !downloaded {
+                    self.client
+                        .send_message(recipient, "Failed to download media")
+                        .await?;
+                    return Ok(vec![]);
+                }
+
+                let file = if is_video {
+                    let destination = format!("{}/{}.mp3", consts::MEDIA_DIR, message.id());
+                    tokio::process::Command::new("ffmpeg")
+                        .args(["-i", &save_path, "-vn", "-acodec", "copy", &destination])
+                        .output()
+                        .await?;
+                    destination
+                } else {
+                    save_path
+                };
+                let text = self.openai.audio_to_text(&file)?;
+
+                let result = self
+                    .openai
+                    .prepare_text_summary(&text.text, gpt_length)
+                    .into_iter()
+                    .map(|prompt| Command::SendPrompt {
+                        recipient: recipient.clone(),
+                        prompt,
+                    })
+                    .collect();
+                Ok(result)
+            }
+            _ => {
+                self.client
+                    .send_message(recipient, "Unsupported media type")
+                    .await?;
+                Ok(vec![])
             }
         }
     }
@@ -243,7 +331,7 @@ impl Processor {
         );
         let prompts = self
             .openai
-            .prepare_summarize_prompts(&messages, gpt_length)
+            .prepare_summarize_prompts_from_messages(&messages, gpt_length)
             .into_iter()
             .map(|prompt| -> Command {
                 Command::SendPrompt {

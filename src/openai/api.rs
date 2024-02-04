@@ -1,6 +1,7 @@
 use grammers_client::types::Message;
 use openai_api_rs::v1::{
     api::Client,
+    audio::{self, AudioTranscriptionRequest},
     chat_completion::{self, ChatCompletionMessage, ChatCompletionRequest, ChatCompletionResponse},
     common::GPT3_5_TURBO,
 };
@@ -81,12 +82,40 @@ impl OpenAIClient {
         Self { api_key }
     }
 
-    pub fn prepare_summarize_prompts(
+    pub fn prepare_summarize_prompts_from_messages(
         &self,
         messages: &[Message],
         gpt_length: GPTLenght,
     ) -> Vec<Prompt> {
-        if messages.is_empty() {
+        let messages = messages
+            .iter()
+            .map(|message| {
+                (
+                    message
+                        .sender()
+                        .and_then(|user| user.username().map(ToString::to_string))
+                        .unwrap_or_default(),
+                    message.text().to_string(),
+                )
+            })
+            .rev();
+        self.prepare_summarize_prompts(messages, gpt_length)
+    }
+
+    pub fn prepare_text_summary(&self, text: &str, gpt_length: GPTLenght) -> Vec<Prompt> {
+        let messages = text
+            .split(['.', '!', '?'].as_ref())
+            .map(|message| (Default::default(), message.to_string()));
+        self.prepare_summarize_prompts(messages, gpt_length)
+    }
+
+    fn prepare_summarize_prompts(
+        &self,
+        messages: impl Iterator<Item = (String, String)>,
+        gpt_length: GPTLenght,
+    ) -> Vec<Prompt> {
+        let mut messages = messages.peekable();
+        if messages.peek().is_none() {
             return vec![];
         }
 
@@ -110,16 +139,8 @@ impl OpenAIClient {
         };
         let mut prompts: Vec<_> = vec![];
         let mut msg = String::new();
-        for (i, message) in messages.iter().rev().enumerate() {
-            let new_line = format!(
-                "{}. [@{}]: \"{}\"\n",
-                i + 1,
-                message
-                    .sender()
-                    .and_then(|s| s.username().map(ToString::to_string))
-                    .unwrap_or("Unknown".to_string()),
-                message.text()
-            );
+        for (i, (user, message)) in messages.enumerate() {
+            let new_line = format!("{}. [@{}]: \"{}\"\n", i + 1, user, message);
             if system_message_len + msg.len() + new_line.len() > consts::SYMBOL_PER_OPENAI_MESSAGE {
                 msg.push_str("```");
                 prompts.push(Prompt {
@@ -156,6 +177,21 @@ impl OpenAIClient {
         if result.choices.is_empty() || result.choices[0].message.content.is_none() {
             return Err(anyhow::anyhow!("Failed to summarize the chat"));
         }
+        Ok(result)
+    }
+
+    pub fn audio_to_text(
+        &self,
+        audio_file: &str,
+    ) -> anyhow::Result<audio::AudioTranscriptionResponse> {
+        let client: Client = Client::new(self.api_key.clone());
+
+        let req =
+            AudioTranscriptionRequest::new(audio_file.to_string(), audio::WHISPER_1.to_string())
+                .temperature(0.2);
+
+        let result = client.audio_transcription(req)?;
+
         Ok(result)
     }
 }
