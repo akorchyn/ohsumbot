@@ -47,7 +47,14 @@ impl Processor {
                 Update::NewMessage(message)
                     if !message.outgoing() && matches!(message.chat(), Chat::Group(_)) =>
                 {
-                    if let Err(err) = self.process_message(message).await {
+                    if let Err(err) = self.process_group_message(message).await {
+                        log::error!("Error processing message: {:?}", err)
+                    }
+                }
+                Update::NewMessage(message)
+                    if !message.outgoing() && matches!(message.chat(), Chat::User(_)) =>
+                {
+                    if let Err(err) = self.process_user_message(message).await {
                         log::error!("Error processing message: {:?}", err)
                     }
                 }
@@ -58,7 +65,31 @@ impl Processor {
         Ok(())
     }
 
-    async fn process_message(&mut self, message: Message) -> anyhow::Result<()> {
+    async fn process_user_message(&mut self, message: Message) -> anyhow::Result<()> {
+        if message.text().starts_with('/') {
+            self.client
+                .send_message(
+                    &message.chat(),
+                    "Write/Forward text or audio you want to get summary on",
+                )
+                .await?;
+            return Ok(());
+        }
+
+        if message.sender().is_some() {
+            self.sender_channel
+                .send(Command::SummarizeMessage {
+                    chat: message.chat(),
+                    recipient: message.sender().unwrap(),
+                    message_id: message.id(),
+                    gpt_length: GPTLenght::Medium,
+                })
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn process_group_message(&mut self, message: Message) -> anyhow::Result<()> {
         let mut splitted_string = message.text().split_whitespace();
         let (cmd, bot_name) = if let Some(text) = splitted_string.next() {
             let mut split = text.split('@');
