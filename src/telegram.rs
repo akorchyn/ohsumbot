@@ -111,8 +111,9 @@ impl Processor {
             return Ok(());
         }
 
-        if cmd == "/help" {
+        let should_remove = if cmd == "/help" {
             self.client.send_message(&message.chat(), usage()).await?;
+            true
         } else if cmd == "/summarize" || cmd == "/small" || cmd == "/medium" || cmd == "/large" {
             let length = match cmd {
                 "/summarize" => GPTLenght::Medium,
@@ -121,23 +122,35 @@ impl Processor {
                 "/large" => GPTLenght::Long,
                 _ => unreachable!(),
             };
-            self.summarize(message, length).await?;
+            self.summarize(&message, length).await?;
+            true
         } else if cmd == "/ask" {
             let question = splitted_string.collect::<Vec<&str>>().join(" ");
-            self.ask(message, question).await?;
+            self.ask(&message, question).await?;
+            true
         } else if cmd.starts_with('/') || is_bot {
+            false
         } else {
             self.db
                 .lock()
                 .await
                 .add_message_id(message.chat().id(), message.id())?;
+            false
+        };
+
+        if should_remove {
+            // We don't check if the message was deleted or not. Bot can not have permissions to delete messages.
+            self.client
+                .delete_messages(message.chat(), &[message.id()])
+                .await
+                .ok();
         }
 
         Ok(())
     }
 
-    async fn ask(&mut self, message: Message, question: String) -> anyhow::Result<()> {
-        let sender = self.sender(&message).await?;
+    async fn ask(&mut self, message: &Message, question: String) -> anyhow::Result<()> {
+        let sender = self.sender(message).await?;
         if sender.is_none() {
             return Ok(());
         }
@@ -155,7 +168,7 @@ impl Processor {
         Ok(())
     }
 
-    async fn summarize(&mut self, message: Message, gpt_length: GPTLenght) -> anyhow::Result<()> {
+    async fn summarize(&mut self, message: &Message, gpt_length: GPTLenght) -> anyhow::Result<()> {
         let mut splitted_string = message.text().split_whitespace();
 
         let reply = message.reply_to_message_id();
@@ -170,7 +183,7 @@ impl Processor {
                 .min(consts::MESSAGE_TO_STORE)
         };
 
-        let sender = self.sender(&message).await?;
+        let sender = self.sender(message).await?;
         if sender.is_none() {
             return Ok(());
         }
