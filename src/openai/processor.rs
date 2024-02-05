@@ -38,6 +38,13 @@ pub enum Command {
         recipient: Chat,
         prompt: Prompt,
     },
+    Ask {
+        chat: Chat,
+        recipient: Chat,
+        question: String,
+        message_count: u32,
+        gpt_length: GPTLenght,
+    },
 }
 
 struct CommandResult {
@@ -136,6 +143,16 @@ impl Processor {
                 self.summarize_message(chat, recipient, message_id, gpt_length)
                     .await
             }
+            Command::Ask {
+                chat,
+                recipient,
+                question,
+                message_count,
+                gpt_length,
+            } => {
+                self.ask_on_summary(chat, recipient, question, message_count, gpt_length)
+                    .await
+            }
             Command::SendPrompt { recipient, prompt } => {
                 log::info!("Sending prompt");
                 let result = self.openai.send_prompt(prompt);
@@ -162,6 +179,40 @@ impl Processor {
                 })
             }
         }
+    }
+
+    async fn ask_on_summary(
+        &self,
+        chat: Chat,
+        recipient: Chat,
+        question: String,
+        message_count: u32,
+        gpt_length: GPTLenght,
+    ) -> anyhow::Result<CommandResult> {
+        let messages = self.load_messages(&chat, message_count, None).await?;
+        if messages.is_empty() {
+            self.client
+                .send_message(recipient, "No messages found")
+                .await?;
+            return Ok(CommandResult {
+                new_commands: vec![],
+            });
+        }
+
+        let prompt = self
+            .openai
+            .prepare_question_prompt(&messages, &question, gpt_length)
+            .into_iter()
+            .map(|prompt| -> Command {
+                Command::SendPrompt {
+                    recipient: recipient.clone(),
+                    prompt,
+                }
+            })
+            .collect();
+        Ok(CommandResult {
+            new_commands: prompt,
+        })
     }
 
     async fn summarize_message(
@@ -314,12 +365,52 @@ impl Processor {
     ) -> anyhow::Result<CommandResult> {
         log::info!("Proccessing summarize command");
         let chat = &chat;
+
+        let messages = self
+            .load_messages(chat, message_count, mentioned_by_user)
+            .await?;
+
+        if messages.is_empty() {
+            self.client
+                .send_message(recipient, "No messages found")
+                .await?;
+            return Ok(CommandResult {
+                new_commands: vec![],
+            });
+        }
+
+        log::info!(
+            "Creating prompts for summarization within {} messages",
+            messages.len()
+        );
+        let prompts = self
+            .openai
+            .prepare_summarize_prompts_from_messages(&messages, gpt_length)
+            .into_iter()
+            .map(|prompt| -> Command {
+                Command::SendPrompt {
+                    recipient: recipient.clone(),
+                    prompt,
+                }
+            })
+            .collect();
+        Ok(CommandResult {
+            new_commands: prompts,
+        })
+    }
+
+    async fn load_messages(
+        &self,
+        chat: &Chat,
+        message_count: u32,
+        mentioned_by_user: Option<String>,
+    ) -> anyhow::Result<Vec<Message>> {
         let messages_id_to_load: Vec<i32> = self
             .db
             .lock()
             .await
             .get_messages_id(chat.id(), message_count)?;
-        let mut messages = Vec::with_capacity(message_count as usize);
+        let mut messages = Vec::with_capacity(messages_id_to_load.len() as usize);
         for i in 0..(messages_id_to_load.len() / consts::TELEGRAM_MAX_MESSAGE_FETCH + 1) {
             let minimum = i * consts::TELEGRAM_MAX_MESSAGE_FETCH;
             let maximum =
@@ -349,32 +440,6 @@ impl Processor {
                 .collect::<Vec<_>>();
             messages.extend(fetched_messages);
         }
-        if messages.is_empty() {
-            self.client
-                .send_message(recipient, "No messages found")
-                .await?;
-            return Ok(CommandResult {
-                new_commands: vec![],
-            });
-        }
-
-        log::info!(
-            "Creating prompts for summarization within {} messages",
-            messages.len()
-        );
-        let prompts = self
-            .openai
-            .prepare_summarize_prompts_from_messages(&messages, gpt_length)
-            .into_iter()
-            .map(|prompt| -> Command {
-                Command::SendPrompt {
-                    recipient: recipient.clone(),
-                    prompt,
-                }
-            })
-            .collect();
-        Ok(CommandResult {
-            new_commands: prompts,
-        })
+        Ok(messages)
     }
 }

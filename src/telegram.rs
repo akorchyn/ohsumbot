@@ -122,6 +122,9 @@ impl Processor {
                 _ => unreachable!(),
             };
             self.summarize(message, length).await?;
+        } else if cmd == "/ask" {
+            let question = splitted_string.collect::<Vec<&str>>().join(" ");
+            self.ask(message, question).await?;
         } else if cmd.starts_with('/') || is_bot {
         } else {
             self.db
@@ -129,6 +132,25 @@ impl Processor {
                 .await
                 .add_message_id(message.chat().id(), message.id())?;
         }
+
+        Ok(())
+    }
+
+    async fn ask(&mut self, message: Message, question: String) -> anyhow::Result<()> {
+        let sender = self.sender(&message).await?;
+        if sender.is_none() {
+            return Ok(());
+        }
+        let sender = sender.unwrap();
+        self.sender_channel
+            .send(Command::Ask {
+                chat: message.chat(),
+                recipient: sender,
+                question,
+                message_count: 200,
+                gpt_length: GPTLenght::Medium,
+            })
+            .await?;
 
         Ok(())
     }
@@ -148,37 +170,16 @@ impl Processor {
                 .min(consts::MESSAGE_TO_STORE)
         };
 
+        let sender = self.sender(&message).await?;
+        if sender.is_none() {
+            return Ok(());
+        }
+        let sender = sender.unwrap();
+
         let filter_by_user = splitted_string
             .nth(2)
             .and_then(|s| s.parse::<String>().ok())
             .map(|s| s.trim_start_matches('@').to_string());
-
-        let sender = if let Some(sender) = message.sender() {
-            if self
-                .client
-                .send_message(&sender, format!("Summarizing {count} messages..."))
-                .await
-                .is_err()
-            {
-                self.client
-                    .send_message(
-                        message.chat(),
-                        "Couldn't send you a message. Please, start a conversation with me first.",
-                    )
-                    .await?;
-                return Ok(());
-            } else {
-                sender
-            }
-        } else {
-            self.client
-                .send_message(
-                    message.chat(),
-                    "Sender is unknown. Check your privacy settings.",
-                )
-                .await?;
-            return Ok(());
-        };
 
         let command = match reply {
             Some(reply) => Command::SummarizeMessage {
@@ -199,5 +200,35 @@ impl Processor {
         self.sender_channel.send(command).await?;
 
         Ok(())
+    }
+
+    async fn sender(&mut self, message: &Message) -> anyhow::Result<Option<Chat>> {
+        let sender = if let Some(sender) = message.sender() {
+            if self
+                .client
+                .send_message(&sender, "Working on your request... Please, wait.")
+                .await
+                .is_err()
+            {
+                self.client
+                    .send_message(
+                        message.chat(),
+                        "Couldn't send you a message. Please, start a conversation with me first.",
+                    )
+                    .await?;
+                return Ok(None);
+            } else {
+                sender
+            }
+        } else {
+            self.client
+                .send_message(
+                    message.chat(),
+                    "Sender is unknown. Check your privacy settings.",
+                )
+                .await?;
+            return Ok(None);
+        };
+        Ok(Some(sender))
     }
 }
