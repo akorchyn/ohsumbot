@@ -203,6 +203,12 @@ impl Processor {
             }
         }
 
+        if commands.is_empty() {
+            self.client
+                .send_message(recipient, "No messages found. Please be aware that messages from bots are not available.")
+                .await?;
+        }
+
         Ok(CommandResult {
             new_commands: commands,
         })
