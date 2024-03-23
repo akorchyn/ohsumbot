@@ -563,7 +563,7 @@ dependencies = [
 [[package]]
 name = "grammers-client"
 version = "0.5.0"
-source = "git+https://github.com/AkkermanD/grammers#4c11f719cb2aaecf503672d9cff287e105b8a1cf"
+source = "git+https://github.com/quetz/grammers#3674dadd64f5240005e59581c81e2d85a64fd523"
 dependencies = [
  "chrono",
  "futures-util",
@@ -579,12 +579,13 @@ dependencies = [
  "os_info",
  "pin-project-lite",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
 name = "grammers-crypto"
-version = "0.5.1"
-source = "git+https://github.com/AkkermanD/grammers#4c11f719cb2aaecf503672d9cff287e105b8a1cf"
+version = "0.6.0"
+source = "git+https://github.com/quetz/grammers#3674dadd64f5240005e59581c81e2d85a64fd523"
 dependencies = [
  "aes",
  "getrandom",
@@ -599,7 +600,7 @@ dependencies = [
 [[package]]
 name = "grammers-mtproto"
 version = "0.5.0"
-source = "git+https://github.com/AkkermanD/grammers#4c11f719cb2aaecf503672d9cff287e105b8a1cf"
+source = "git+https://github.com/quetz/grammers#3674dadd64f5240005e59581c81e2d85a64fd523"
 dependencies = [
  "bytes",
  "crc32fast",
@@ -615,7 +616,7 @@ dependencies = [
 [[package]]
 name = "grammers-mtsender"
 version = "0.5.0"
-source = "git+https://github.com/AkkermanD/grammers#4c11f719cb2aaecf503672d9cff287e105b8a1cf"
+source = "git+https://github.com/quetz/grammers#3674dadd64f5240005e59581c81e2d85a64fd523"
 dependencies = [
  "bytes",
  "futures-util",
@@ -624,12 +625,13 @@ dependencies = [
  "grammers-tl-types",
  "log 0.4.20",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
 name = "grammers-session"
 version = "0.5.1"
-source = "git+https://github.com/AkkermanD/grammers#4c11f719cb2aaecf503672d9cff287e105b8a1cf"
+source = "git+https://github.com/quetz/grammers#3674dadd64f5240005e59581c81e2d85a64fd523"
 dependencies = [
  "grammers-crypto",
  "grammers-tl-gen",
@@ -641,7 +643,7 @@ dependencies = [
 [[package]]
 name = "grammers-tl-gen"
 version = "0.5.1"
-source = "git+https://github.com/AkkermanD/grammers#4c11f719cb2aaecf503672d9cff287e105b8a1cf"
+source = "git+https://github.com/quetz/grammers#3674dadd64f5240005e59581c81e2d85a64fd523"
 dependencies = [
  "grammers-tl-parser",
 ]
@@ -649,7 +651,7 @@ dependencies = [
 [[package]]
 name = "grammers-tl-parser"
 version = "1.1.1"
-source = "git+https://github.com/AkkermanD/grammers#4c11f719cb2aaecf503672d9cff287e105b8a1cf"
+source = "git+https://github.com/quetz/grammers#3674dadd64f5240005e59581c81e2d85a64fd523"
 dependencies = [
  "crc32fast",
 ]
@@ -657,7 +659,7 @@ dependencies = [
 [[package]]
 name = "grammers-tl-types"
 version = "0.5.1"
-source = "git+https://github.com/AkkermanD/grammers#4c11f719cb2aaecf503672d9cff287e105b8a1cf"
+source = "git+https://github.com/quetz/grammers#3674dadd64f5240005e59581c81e2d85a64fd523"
 dependencies = [
  "grammers-tl-gen",
  "grammers-tl-parser",
@@ -1738,6 +1740,37 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tracing"
+version = "0.1.40"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3523ab5a71916ccf420eebdf5521fcef02141234bbc0b8a49f2fdc4544364ef"
+dependencies = [
+ "pin-project-lite",
+ "tracing-attributes",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-attributes"
+version = "0.1.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "34704c8d6ebcbc939824180af020566b01a7c01f80641264eba0999f6c2b6be7"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "tracing-core"
+version = "0.1.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c06d3da6113f116aaee68e4d601191614c9053067f9ab7f6edbcb161237daa54"
+dependencies = [
+ "once_cell",
 ]
 
 [[package]]

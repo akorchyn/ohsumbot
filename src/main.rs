@@ -3,6 +3,8 @@ use std::sync::Arc;
 use grammers_client::{Client, Config};
 use grammers_session::Session;
 use tokio::sync::Mutex;
+use std::ops::ControlFlow;
+use std::time::Duration;
 
 pub mod consts;
 mod db;
@@ -23,8 +25,23 @@ struct BotInfo {
     openai_api_key: String,
 }
 
-static FIXED_RECONNECT_POLICY: grammers_mtsender::FixedReconnect =
-    grammers_mtsender::FixedReconnect {
+struct ReconnectionPolicy {
+    attempts: usize,
+    delay: std::time::Duration,
+}
+
+impl grammers_mtsender::retry::RetryPolicy for ReconnectionPolicy {
+    fn should_retry(&self, attempt: usize) -> ControlFlow<(), Duration>  {
+        if attempt < self.attempts {
+            ControlFlow::Continue(self.delay)
+        } else {
+            ControlFlow::Break(())
+        }
+    }
+}
+
+static FIXED_RECONNECT_POLICY: ReconnectionPolicy =
+ReconnectionPolicy {
         attempts: 5,
         delay: std::time::Duration::from_secs(5),
     };
