@@ -234,7 +234,7 @@ impl OpenAIClient {
         let client = openai_api_rust::OpenAI::new(auth, "https://api.openai.com/v1/");
 
         let req = ChatBody {
-            model: "gpt-3.5-turbo".to_string(),
+            model: "gpt-4o".to_string(),
             messages: vec![prompt.system_message, prompt.user_message],
             max_tokens: Some(prompt.gpt_length.to_max_tokens()),
             temperature: Some(0.5),
